@@ -1,0 +1,33 @@
+# 场景定义：游戏大厅
+[[scenes]]
+id = "lobby"
+name = "游戏大厅"
+# OCR 锚点：如果在这些位置识别到这些字，就说明在大厅
+anchors = [
+    { rect = [1600, 30, 1800, 80], text = "开始游戏" },
+    { rect = [50, 20, 150, 60], text = "角色" }
+]
+
+# 跳转关系：从大厅可以去哪
+[[scenes.transitions]]
+target = "map_select"      # 目标场景 ID
+trigger_btn = [1650, 40]   # 点击这个坐标去目标场景
+action = "Click"
+
+[[scenes.transitions]]
+target = "shop"
+trigger_btn = [100, 1000]
+action = "Click"
+
+# 场景定义：地图选择
+[[scenes]]
+id = "map_select"
+name = "地图选择"
+anchors = [
+    { rect = [900, 50, 1020, 100], text = "选择关卡" }
+]
+
+[[scenes.transitions]]
+target = "lobby"
+trigger_btn = [20, 20]      # 返回按钮
+action = "Click"
