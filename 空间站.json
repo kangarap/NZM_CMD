@@ -3,7 +3,8 @@
   "meta": {
     "grid_pixel_size": 21.3,
     "offset_x": 144.0,
-    "offset_y": 265.0
+    "offset_y": 265.0,
+    "bottom": 1990
   },
   "layers": [
     {

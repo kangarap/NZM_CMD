@@ -188,10 +188,11 @@ impl GameInterface {
         diff <= (tolerance as i16 * 3)
     }
 
-    fn perform_click(&self, x: i32, y: i32) {
+fn perform_click(&self, x: i32, y: i32) {
         if let Ok(mut bot) = self.driver.lock() {
             bot.move_to_humanly(x as u16, y as u16, 0.6);
-            bot.click_humanly(true, false);
+            // 🔥 增加第三个参数 0，表示使用默认随机点击时长
+            bot.click_humanly(true, false, 0); 
         }
     }
 }

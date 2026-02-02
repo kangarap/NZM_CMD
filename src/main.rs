@@ -1,7 +1,7 @@
 // src/main.rs
 use minke_driver::InputDevice;
 use minke_driver::human::HumanDriver;
-use minke_driver::nav::{NavEngine, NavResult};
+use minke_driver::nav::NavEngine;
 use minke_driver::tower_defense::TowerDefenseApp;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -9,21 +9,20 @@ use std::time::Duration;
 
 fn main() {
     println!("========================================");
-    println!("🚀 MINKE 智能控制中心");
+    println!("🛠️ MINKE 塔防模式 - 纯代码控制版");
     println!("========================================");
 
-    // 1. 硬件驱动初始化
     let port_name = "COM9"; 
     let (sw, sh) = (1920, 1080);
     
     let driver_arc = match InputDevice::new(port_name, 115200, sw, sh) {
         Ok(d) => Arc::new(Mutex::new(d)),
         Err(e) => {
-            panic!("❌ 错误: 硬件未连接 ({})", e);
+            // panic!("❌ 错误: 硬件未连接 ({})", e); // 正常调试用这行
+            unsafe { std::mem::transmute(Arc::new(Mutex::new(()))) } // 无硬件调试用这行
         }
     };
 
-    // 启动心跳线程
     let hb = Arc::clone(&driver_arc);
     thread::spawn(move || loop {
         if let Ok(mut d) = hb.lock() { d.heartbeat(); }
@@ -34,52 +33,33 @@ fn main() {
         HumanDriver::new(Arc::clone(&driver_arc), sw/2, sh/2)
     ));
 
-    // 2. 初始化导航引擎
     let engine = Arc::new(NavEngine::new("ui_map.toml", Arc::clone(&human_driver)));
-    println!("✅ 视觉引擎与 UI 地图已就绪");
+    println!("✅ 引擎初始化完成");
 
-    println!("👉 请在 3 秒内切换到游戏窗口...");
-    thread::sleep(Duration::from_secs(3));
+    println!("👉 请在 5 秒内切换到游戏窗口...");
+    thread::sleep(Duration::from_secs(5));
 
-    // ==========================================
-    // 🎯 任务主循环
-    // ==========================================
-    let target_objective = "空间站普通"; 
+    println!("\n🚀 [DEBUG] 启动逻辑...");
 
-    loop {
-        println!("\n🔄 [主控] 开始导航至目标: {}", target_objective);
-        
-        let result = engine.navigate(target_objective);
+    let mut td_app = TowerDefenseApp::new(
+        Arc::clone(&human_driver),
+        Arc::clone(&engine) 
+    );
+    
+    // 定义你要携带的塔 (名字必须和 traps_config.json 里的一致)
+    let my_loadout = vec![
+        "破坏者", 
+        "自修复磁暴塔", 
+        "防空导弹",
+        "修理站"
+    ];
 
-        match result {
-            NavResult::Success => {
-                println!("✅ [主控] 已到达目标界面");
-                thread::sleep(Duration::from_secs(5));
-            }
-            
-            NavResult::Handover(scene_id) => {
-                println!("⚔️  [主控] 检测到控制权移交: [{}]", scene_id);
+    td_app.run(
+        "空间站.json", 
+        "strategy_01.json", 
+        "traps_config.json", // 依然保留坐标配置，方便改 UI
+        &my_loadout          // 传入要携带的塔列表
+    );
 
-                if scene_id == "空间站普通" {
-                    println!("🏗️  启动塔防地图策略逻辑...");
-                    
-                    let mut td_app = TowerDefenseApp::new(
-                        Arc::clone(&human_driver),
-                        Arc::clone(&engine) 
-                    );
-                    
-                    // 运行塔防流程
-                    td_app.run("terrain_01.json", "strategy_01.json");
-                }
-                
-                println!("🏁 [主控] 塔防任务结束，回到 UI 导航模式");
-                thread::sleep(Duration::from_secs(2));
-            }
-            
-            NavResult::Failed => {
-                println!("❌ [主控] 导航失败，重新扫描中...");
-                thread::sleep(Duration::from_secs(5));
-            }
-        }
-    }
+    println!("✅ 执行完毕");
 }

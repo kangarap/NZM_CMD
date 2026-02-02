@@ -1,0 +1,133 @@
+{
+  "map_name": "Ni-Zhan_Map",
+  "buildings": [
+    {
+      "uid": 1035,
+      "name": "修理站",
+      "grid_x": 34,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1036,
+      "name": "修理站",
+      "grid_x": 28,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1037,
+      "name": "修理站",
+      "grid_x": 30,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1038,
+      "name": "修理站",
+      "grid_x": 32,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1039,
+      "name": "修理站",
+      "grid_x": 44,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1040,
+      "name": "修理站",
+      "grid_x": 46,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1042,
+      "name": "修理站",
+      "grid_x": 48,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1043,
+      "name": "修理站",
+      "grid_x": 50,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1044,
+      "name": "修理站",
+      "grid_x": 28,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1045,
+      "name": "修理站",
+      "grid_x": 30,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1046,
+      "name": "修理站",
+      "grid_x": 32,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1047,
+      "name": "修理站",
+      "grid_x": 34,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1048,
+      "name": "修理站",
+      "grid_x": 44,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1050,
+      "name": "修理站",
+      "grid_x": 46,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1051,
+      "name": "修理站",
+      "grid_x": 48,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    },
+    {
+      "uid": 1052,
+      "name": "修理站",
+      "grid_x": 50,
+      "grid_y": 58,
+      "width": 2,
+      "height": 2
+    }
+  ]
+}
