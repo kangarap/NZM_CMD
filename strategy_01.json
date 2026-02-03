@@ -2,10 +2,30 @@
   "map_name": "Ni-Zhan_Map",
   "buildings": [
     {
-      "uid": 1002,
-      "name": "防空导弹",
+      "uid": 1000,
+      "name": "修理站",
       "grid_x": 28,
       "grid_y": 56,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1001,
+      "name": "修理站",
+      "grid_x": 50,
+      "grid_y": 56,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1002,
+      "name": "修理站",
+      "grid_x": 33,
+      "grid_y": 28,
       "width": 2,
       "height": 2,
       "wave_num": 1,
@@ -13,55 +33,95 @@
     },
     {
       "uid": 1003,
-      "name": "防空导弹",
-      "grid_x": 30,
-      "grid_y": 56,
+      "name": "修理站",
+      "grid_x": 45,
+      "grid_y": 28,
       "width": 2,
       "height": 2,
       "wave_num": 1,
       "is_late": false
     },
     {
-      "uid": 1004,
-      "name": "防空导弹",
-      "grid_x": 28,
-      "grid_y": 30,
-      "width": 2,
-      "height": 2,
-      "wave_num": 2,
-      "is_late": false
-    },
-    {
       "uid": 1005,
-      "name": "防空导弹",
-      "grid_x": 30,
-      "grid_y": 30,
+      "name": "修理站",
+      "grid_x": 45,
+      "grid_y": 40,
       "width": 2,
       "height": 2,
-      "wave_num": 2,
+      "wave_num": 1,
       "is_late": false
     },
     {
       "uid": 1006,
-      "name": "防空导弹",
-      "grid_x": 32,
-      "grid_y": 30,
+      "name": "修理站",
+      "grid_x": 33,
+      "grid_y": 40,
       "width": 2,
       "height": 2,
-      "wave_num": 2,
-      "is_late": false
-    }
-  ],
-  "upgrades": [
-    {
-      "building_name": "防空导弹",
-      "wave_num": 2,
+      "wave_num": 1,
       "is_late": false
     },
     {
-      "building_name": "防空导弹",
-      "wave_num": 2,
+      "uid": 1007,
+      "name": "修理站",
+      "grid_x": 28,
+      "grid_y": 70,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1009,
+      "name": "修理站",
+      "grid_x": 6,
+      "grid_y": 36,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1012,
+      "name": "修理站",
+      "grid_x": 39,
+      "grid_y": 34,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1013,
+      "name": "修理站",
+      "grid_x": 50,
+      "grid_y": 70,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1014,
+      "name": "修理站",
+      "grid_x": 24,
+      "grid_y": 48,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
+      "is_late": false
+    },
+    {
+      "uid": 1015,
+      "name": "修理站",
+      "grid_x": 54,
+      "grid_y": 48,
+      "width": 2,
+      "height": 2,
+      "wave_num": 1,
       "is_late": false
     }
-  ]
+  ],
+  "upgrades": [],
+  "demolishes": []
 }
