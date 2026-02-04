@@ -252,23 +252,16 @@ impl TowerDefenseApp {
             return None;
         }
 
-// 🔥 新增：打印原始 OCR 文本（带上范围标记，防止有不可见字符）
         println!("🔍 [OCR Debug] 原始文本: 「{}」 (Mode: {})", text.trim(), if use_tab { "TAB" } else { "HUD" });
 
-let val = if use_tab {
-            // 🔥 更加鲁棒的 TAB 模式正则：
-            // 1. (\d+) : 捕获当前的波次数字
-            // 2. [/\dSI日]+ : 匹配斜杠及其后面的干扰字符（数字、S、I、日、/ 等）
-            // 3. .*波次 : 匹配后面的“波次”文字
+        let val = if use_tab {
             let re = Regex::new(r"(\d+)[/\dSI日]+.*波次").ok()?;
-            
             re.captures(&text).and_then(|caps| {
                 let num = caps.get(1)?.as_str().parse::<i32>().ok()?;
                 println!("✅ [OCR Match] TAB 模式匹配成功: 第 {} 波", num);
                 Some(num)
             })?
         } else {
-            // HUD 模式保持相对严格
             let re = Regex::new(r"波次\s*(\d+)").ok()?;
             re.captures(&text).and_then(|caps| {
                 let num = caps.get(1)?.as_str().parse::<i32>().ok()?;
@@ -295,6 +288,25 @@ let val = if use_tab {
         } else {
             false
         }
+    }
+
+    // 🔥 新增：辅助函数，判断任务是否都在当前视野安全区内
+    fn are_tasks_in_current_view(&self, tasks: &[ScheduledTask]) -> bool {
+        let [_, sz_y1, _, sz_y2] = self.config.safe_zone;
+        
+        // 当前屏幕顶部在地图上的逻辑坐标
+        let view_top = self.camera_offset_y;
+        
+        // 安全区的绝对地图坐标范围
+        let safe_map_top = view_top + sz_y1 as f32;
+        let safe_map_bottom = view_top + sz_y2 as f32;
+
+        for task in tasks {
+            if task.map_y < safe_map_top || task.map_y > safe_map_bottom {
+                return false;
+            }
+        }
+        true
     }
 
     pub fn execute_wave_phase(&mut self, wave: i32, is_late: bool) {
@@ -372,8 +384,9 @@ let val = if use_tab {
 
         println!("📊 [Debug] 分区情况: 上半区 {} 个, 下半区 {} 个", upper_tasks.len(), lower_tasks.len());
 
+        // --- 上半区处理逻辑 ---
         if !upper_tasks.is_empty() {
-            println!("⬆️ 执行上半区任务: {} 个", upper_tasks.len());
+            println!("⬆️ 准备执行上半区任务...");
             upper_tasks.sort_by(|a, b| {
                 a.map_y
                     .partial_cmp(&b.map_y)
@@ -381,13 +394,20 @@ let val = if use_tab {
                     .then(a.priority.cmp(&b.priority))
             });
 
-            self.align_camera_to_edge(true);
-            // 🔥 这里传入 true，表示因为刚刚对齐过，即使第一个任务就在当前位置，也要强制“三连击”刷新陷阱
-            self.process_task_batch(upper_tasks, true);
+            // 🔥 智能归零判断
+            if self.are_tasks_in_current_view(&upper_tasks) {
+                println!("✨ [Smart] 上半区任务均在当前视野内，跳过归零！");
+                self.process_task_batch(upper_tasks, false);
+            } else {
+                println!("🔄 [Reset] 任务超出视野，执行顶部归零...");
+                self.align_camera_to_edge(true);
+                self.process_task_batch(upper_tasks, true);
+            }
         }
 
+        // --- 下半区处理逻辑 ---
         if !lower_tasks.is_empty() {
-            println!("⬇️ 执行下半区任务: {} 个", lower_tasks.len());
+            println!("⬇️ 准备执行下半区任务...");
             lower_tasks.sort_by(|a, b| {
                 b.map_y
                     .partial_cmp(&a.map_y)
@@ -395,13 +415,18 @@ let val = if use_tab {
                     .then(a.priority.cmp(&b.priority))
             });
 
-            self.align_camera_to_edge(false);
-            // 🔥 同理，传入 true
-            self.process_task_batch(lower_tasks, true);
+            // 🔥 智能归零判断
+            if self.are_tasks_in_current_view(&lower_tasks) {
+                println!("✨ [Smart] 下半区任务均在当前视野内，跳过归零！");
+                self.process_task_batch(lower_tasks, false);
+            } else {
+                println!("🔄 [Reset] 任务超出视野，执行底部归零...");
+                self.align_camera_to_edge(false);
+                self.process_task_batch(lower_tasks, true);
+            }
         }
     }
 
-    // 🔥 核心修改：接收 force_initial_refresh 参数
     fn process_task_batch(&mut self, tasks: Vec<ScheduledTask>, force_initial_refresh: bool) {
         let mut last_build_key: Option<char> = None;
         let mut is_first_task = true;
@@ -415,7 +440,7 @@ let val = if use_tab {
             // 计算是否因为距离变动导致了“屏幕移动”
             let mut screen_moved = self.smart_move_camera(task.map_y);
 
-            // 🔥 关键逻辑：如果是本批次的第一个任务，且外部要求强制刷新（因为刚归零过），
+            // 如果是本批次的第一个任务，且外部要求强制刷新（因为刚归零过），
             // 那么强制认为 screen_moved = true，从而触发 perform_build_action 中的“三连击”
             if is_first_task && force_initial_refresh {
                 screen_moved = true;
@@ -471,7 +496,7 @@ let val = if use_tab {
         if let Ok(mut d) = self.driver.lock() {
             d.move_to_humanly(screen_x as u16, screen_y as u16, 0.35);
 
-            // 🔥 策略执行：只有在屏幕动过（或刚归零过）时才进行三连击
+            // 策略执行：只有在屏幕动过（或刚归零过）时才进行三连击
             if screen_moved {
                 let swap_key = if key == '4' { '5' } else { '4' };
                 d.key_click(key);
@@ -518,6 +543,25 @@ let val = if use_tab {
         thread::sleep(Duration::from_millis(500));
     }
 
+    // 🔥 新增：像素级滚动封装函数
+    fn scroll_camera_by_pixels(&self, direction: char, pixels: f32, time_resolution_ms: u64) -> f32 {
+        if pixels < 10.0 { return 0.0; }
+
+        let raw_ms = (pixels / self.move_speed * 1000.0) as u64;
+        
+        // 量子化取整
+        let units = (raw_ms + time_resolution_ms / 2) / time_resolution_ms;
+        let final_ms = units.max(1) * time_resolution_ms;
+
+        if let Ok(mut human) = self.driver.lock() {
+            // println!("📷 滚动: {:.1}px -> {}ms", pixels, final_ms);
+            human.key_hold(direction, final_ms);
+        }
+
+        // 返回实际移动距离
+        (final_ms as f32 / 1000.0) * self.move_speed
+    }
+
     // 返回 true 表示确实进行了物理移动
     fn smart_move_camera(&mut self, target_map_y: f32) -> bool {
         let [_, z_y1, _, z_y2] = self.config.safe_zone;
@@ -528,38 +572,37 @@ let val = if use_tab {
         let ideal_cam_y = (target_map_y - safe_center_screen_y).clamp(0.0, max_scroll_y);
         let delta = ideal_cam_y - self.camera_offset_y;
 
-        // 小于 50 像素不移动
-        if delta.abs() < 10.0 {
+        // 小于 30 像素不移动
+        if delta.abs() < 30.0 {
             return false;
         }
 
-        // 判定往哪边归零更近/更顺手
         let mid_scroll = max_scroll_y / 2.0;
+        const SCROLL_RES: u64 = 100; // 时间分辨率 100ms
 
         if ideal_cam_y <= mid_scroll {
             // 归零到顶部 (0)
             self.align_camera_to_edge(true);
+            self.camera_offset_y = 0.0;
+
             // 向下微调
             if ideal_cam_y > 10.0 {
-                if let Ok(mut human) = self.driver.lock() {
-                    let duration = (ideal_cam_y / self.move_speed * 1000.0) as u64;
-                    human.key_hold('s', duration);
-                }
+                let moved = self.scroll_camera_by_pixels('s', ideal_cam_y, SCROLL_RES);
+                self.camera_offset_y += moved;
             }
         } else {
             // 归零到底部
             self.align_camera_to_edge(false);
+            self.camera_offset_y = max_scroll_y;
+
             // 向上微调
             let dist_up = max_scroll_y - ideal_cam_y;
             if dist_up > 10.0 {
-                if let Ok(mut human) = self.driver.lock() {
-                    let duration = (dist_up / self.move_speed * 1000.0) as u64;
-                    human.key_hold('w', duration);
-                }
+                let moved = self.scroll_camera_by_pixels('w', dist_up, SCROLL_RES);
+                self.camera_offset_y -= moved;
             }
         }
 
-        self.camera_offset_y = ideal_cam_y;
         thread::sleep(Duration::from_millis(200));
         true
     }
@@ -610,41 +653,36 @@ let val = if use_tab {
         println!("🔧 执行赛前准备...");
 
         if let Ok(mut human) = self.driver.lock() {
-            // 🔥 新增：按住 W 的同时按空格 (W + Space)
+            // W + Space 组合键
             if let Ok(mut dev) = human.device.lock() {
-                // HID 键码: W = 0x1A, Space = 0x2C
-
                 // (1) 按下 W
                 dev.key_down(0x1A, 0);
             }
             thread::sleep(Duration::from_millis(1000)); // 助跑时间
 
             if let Ok(mut dev) = human.device.lock() {
-                // (2) 按下 Space (此时 W 仍保持按下状态，发送组合键 W+Space)
+                // (2) 按下 Space
                 dev.key_down(0x2C, 0);
             }
             thread::sleep(Duration::from_millis(100)); // 起跳判定时间
 
             if let Ok(mut dev) = human.device.lock() {
-                // (3) 松开所有按键 (W 和 Space 同时松开)
+                // (3) 松开所有
                 dev.key_up();
             }
-            if let Ok(mut dev) = human.device.lock() {
-                // HID 键码: W = 0x1A, Space = 0x2C
-
-                // (1) 按下 W
+            
+            // 为了稳妥，再做一遍
+             if let Ok(mut dev) = human.device.lock() {
                 dev.key_down(0x1A, 0);
             }
-            thread::sleep(Duration::from_millis(200)); // 助跑时间
+            thread::sleep(Duration::from_millis(200)); 
 
             if let Ok(mut dev) = human.device.lock() {
-                // (2) 按下 Space (此时 W 仍保持按下状态，发送组合键 W+Space)
                 dev.key_down(0x2C, 0);
             }
-            thread::sleep(Duration::from_millis(100)); // 起跳判定时间
+            thread::sleep(Duration::from_millis(100)); 
 
             if let Ok(mut dev) = human.device.lock() {
-                // (3) 松开所有按键 (W 和 Space 同时松开)
                 dev.key_up();
             }
             println!("   -> 执行战术动作: W + Space");
@@ -720,7 +758,7 @@ let val = if use_tab {
 
         println!("⏳ 等待战斗开始...");
         loop {
-            // 🔥 初始阶段：不需要 TAB，用旧正则
+            // 初始阶段：不需要 TAB，用旧正则
             if let Some(status) = self.recognize_wave_status(self.config.hud_check_rect, false) {
                 if status.current_wave > 0 {
                     println!("🎮 战斗开始! 初始波次: {}", status.current_wave);
@@ -736,7 +774,7 @@ let val = if use_tab {
 
         println!("🤖 自动化监控中...");
         loop {
-            // 🔥 战斗阶段：需要 TAB，用新正则
+            // 战斗阶段：需要 TAB，用新正则
             if let Some(status) = self.recognize_wave_status(self.config.hud_wave_loop_rect, true) {
                 if self.validate_wave_transition(status.current_wave) {
                     let current_wave = status.current_wave;
