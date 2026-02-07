@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use clap::Parser;
-use screenshots::Screen; // 用于屏幕测试
+use screenshots::Screen; 
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -16,7 +16,8 @@ struct Args {
     #[arg(short, long, default_value = "COM3")]
     port: String,
 
-    /// 导航目标界面名称
+    /// 导航目标界面名称 (例如: "空间站普通", "空间站炼狱")
+    /// 这个名字将直接用于寻找对应的地图和策略文件
     #[arg(short, long, default_value = "空间站普通")]
     target: String,
 
@@ -61,30 +62,26 @@ fn main() {
         HumanDriver::new(Arc::clone(&driver_arc), sw/2, sh/2)
     ));
 
-    // 如果是测试 input 或 screen，其实不需要 NavEngine，但为了统一流程我们还是初始化它
-    // 注意：如果只想测试 screen/ocr 但不想依赖 ui_map.toml，这里可以加判断，但简单起见我们假设文件存在
     let engine = Arc::new(NavEngine::new("ui_map.toml", Arc::clone(&human_driver)));
 
     // ==========================================
     // 🔍 分发测试逻辑
     // ==========================================
     if let Some(mode) = args.test.as_deref() {
-        println!("⏳ 5秒后开始执行 [{}] 测试，请切换到目标窗口...", mode);
+        // ... (测试代码保持不变) ...
+        println!("⏳ 5秒后开始执行 [{}] 测试...", mode);
         thread::sleep(Duration::from_secs(5));
-
         match mode {
             "input" => run_input_test(human_driver),
             "screen" => run_screen_test(),
             "ocr" => run_ocr_test(engine),
-            _ => println!("❌ 未知测试模式: {}. 可用模式: input, screen, ocr", mode),
+            _ => println!("❌ 未知测试模式"),
         }
-        
-        println!("🏁 测试结束");
-        return; // 测试完成后直接退出
+        return; 
     }
 
     // ==========================================
-    // 🚀 正常业务流程 (非测试模式)
+    // 🚀 正常业务流程
     // ==========================================
     println!("✅ 引擎就绪，5秒后开始自动导航...");
     thread::sleep(Duration::from_secs(5));
@@ -97,8 +94,22 @@ fn main() {
             println!("⚔️ [主控] 控制权移交: [{}] -> 启动塔防逻辑", scene_id);
             let mut td_app = TowerDefenseApp::new(Arc::clone(&human_driver), Arc::clone(&engine));
             
-            let my_loadout = vec!["破坏者", "自修复磁暴塔", "防空导弹", "修理站"];
-            td_app.run("空间站.json", "strategy_01.json", "traps_config.json", &my_loadout);
+            // ✨✨✨ 核心修改：动态生成文件名 ✨✨✨
+            // 规则：
+            // 1. 地图文件 = "{目标名}地图.json"
+            // 2. 策略文件 = "{目标名}策略.json"
+            // 3. 陷阱配置 = "traps_config.json" (默认通用)
+            let map_file = format!("{}地图.json", scene_id);
+            let strategy_file = format!("{}策略.json", scene_id);
+            let traps_file = "traps_config.json";
+
+            println!("📂 自动加载配置:");
+            println!("   📄 地图: {}", map_file);
+            println!("   📄 策略: {}", strategy_file);
+            println!("   📄 陷阱: {}", traps_file);
+
+            // 调用 run，传入生成的路径
+            td_app.run(&map_file, &strategy_file, traps_file);
         }
         NavResult::Success => println!("✅ [主控] 到达目标，任务完成。"),
         NavResult::Failed => println!("❌ [主控] 导航失败。"),

@@ -28,6 +28,7 @@ pub enum PrepAction {
 fn get_hid_code(c: char) -> u8 {
     match c.to_ascii_lowercase() {
         'a'..='z' => c.to_ascii_lowercase() as u8 - b'a' + 0x04,
+        '0'..='9' => c as u8 - b'1' + 0x1E, // 简略处理
         ' ' => 0x2C,
         _ => 0,
     }
@@ -653,72 +654,64 @@ pub fn execute_wave_phase(&mut self, wave: i32, is_late: bool) {
         self.camera_offset_y = 0.0;
     }
 
-pub fn execute_prep_logic(&self, loadout: &[&str]) {
+pub fn execute_prep_logic(&self) {
         println!("🔧 执行赛前准备...");
 
-        // 1. 执行配置的战术动作 (移动/跳跃等)
+        // 1. 执行 MapMeta 中配置的战术动作 (如助跑跳)
         if let Some(meta) = &self.map_meta {
             if !meta.prep_actions.is_empty() {
                 println!("   -> 加载自定义战术动作 ({} 步)", meta.prep_actions.len());
-                
                 if let Ok(mut human) = self.driver.lock() {
                     if let Ok(mut dev) = human.device.lock() {
                         for action in &meta.prep_actions {
                             match action {
                                 PrepAction::KeyDown { key } => {
                                     let code = get_hid_code(*key);
-                                    if code != 0 {
-                                        dev.key_down(code, 0);
-                                    }
+                                    if code != 0 { dev.key_down(code, 0); }
                                 }
                                 PrepAction::KeyUpAll => {
                                     dev.key_up();
                                 }
                                 PrepAction::Wait { ms } => {
-                                    // 释放锁进行睡眠，避免长时间占用设备锁 (可选，但推荐)
-                                    drop(dev); 
+                                    drop(dev); // 释放锁以允许心跳
                                     thread::sleep(Duration::from_millis(*ms));
-                                    // 重新获取锁
-                                    dev = human.device.lock().unwrap(); 
+                                    dev = human.device.lock().unwrap(); // 重新获取锁
                                 }
                                 PrepAction::Log { msg } => {
                                     println!("   [Prep] {}", msg);
                                 }
                             }
                         }
-                        // 保险起见，循环结束后强制松开所有键
-                        dev.key_up();
+                        dev.key_up(); // 确保结束后松开按键
                     }
                 }
-            } else {
-                println!("   -> 无战术动作配置，跳过。");
             }
         }
 
-        // 2. 打开装备菜单选塔 (保留之前的逻辑)
+        // 2. 打开菜单
         if let Ok(mut human) = self.driver.lock() {
             human.key_click('n');
             thread::sleep(Duration::from_millis(500));
         }
 
-        self.select_loadout(loadout);
+        // 3. 选塔 (使用内部 active_loadout)
+        self.select_loadout();
 
+        // 4. 关闭菜单
         if let Ok(mut human) = self.driver.lock() {
             human.key_click('n');
             thread::sleep(Duration::from_millis(500));
         }
     }
-pub fn select_loadout(&self, tower_names: &[&str]) {
-        // UI 布局常量
+    pub fn select_loadout(&self) {
         const GRID_START_X: i32 = 520;
         const GRID_START_Y: i32 = 330;
         const GRID_STEP_X: i32 = 170;
         const GRID_STEP_Y: i32 = 205;
 
-        for name in tower_names.iter().take(4) {
-            if let Some(config) = self.trap_lookup.get(*name) {
-                // 1. 根据 b_type 切换左侧标签
-                // 假设标签页 X=212, Y 分别为 294(地), 380(墙), 465(顶)
+        for name in self.active_loadout.iter().take(4) {
+            if let Some(config) = self.trap_lookup.get(name) {
+                // 1. 根据 b_type 切换标签
                 let (tab_x, tab_y) = match config.b_type.as_str() {
                     "Wall" => (172, 375),    // ⚠️ TODO: 请确认墙面标签的 Y 坐标
                     "Ceiling" => (172, 462), // ⚠️ TODO: 请确认天花板标签的 Y 坐标
@@ -729,13 +722,11 @@ pub fn select_loadout(&self, tower_names: &[&str]) {
                     // 点击分类标签
                     d.move_to_humanly(tab_x, tab_y, 0.4);
                     d.click_humanly(true, false, 0);
-                    // 等待 UI 刷新，避免点太快
-                    thread::sleep(Duration::from_millis(300));
+                    thread::sleep(Duration::from_millis(350));
 
-                    // 2. ✨ 计算网格坐标
+                    // 2. 计算网格坐标
                     let col = config.grid_index[0];
                     let row = config.grid_index[1];
-                    
                     let target_x = GRID_START_X + col * GRID_STEP_X;
                     let target_y = GRID_START_Y + row * GRID_STEP_Y;
 
@@ -743,7 +734,6 @@ pub fn select_loadout(&self, tower_names: &[&str]) {
                     d.move_to_humanly(target_x as u16, target_y as u16, 0.4);
                     d.click_humanly(true, false, 0);
                 }
-                
                 thread::sleep(Duration::from_millis(400));
             } else {
                 println!("⚠️ [Config Error] 未找到陷阱配置: {}", name);
@@ -779,12 +769,39 @@ pub fn select_loadout(&self, tower_names: &[&str]) {
         }
     }
 
-    pub fn run(&mut self, terrain_p: &str, strategy_p: &str, trap_p: &str, loadout: &[&str]) {
-        self.active_loadout = loadout.iter().map(|&s| s.to_string()).collect();
+pub fn run(&mut self, terrain_p: &str, strategy_p: &str, trap_p: &str) {
+        // 1. 加载所有配置
         self.load_map_terrain(terrain_p);
-        self.load_strategy(strategy_p);
-        self.load_trap_config(trap_p);
+        self.load_trap_config(trap_p); // 先加载陷阱库
+        self.load_strategy(strategy_p); // 再加载策略
 
+        // 2. ✨ 自动从策略中提取需要携带的陷阱
+        let mut seen = HashSet::new();
+        let mut derived_loadout = Vec::new();
+
+        // 收集建造任务中的塔
+        for b in &self.strategy_buildings {
+            if !seen.contains(&b.name) && self.trap_lookup.contains_key(&b.name) {
+                seen.insert(b.name.clone());
+                derived_loadout.push(b.name.clone());
+            }
+        }
+        // 收集升级任务中的塔
+        for u in &self.strategy_upgrades {
+            if !seen.contains(&u.building_name) && self.trap_lookup.contains_key(&u.building_name) {
+                seen.insert(u.building_name.clone());
+                derived_loadout.push(u.building_name.clone());
+            }
+        }
+
+        if derived_loadout.is_empty() {
+             println!("⚠️ 警告: 策略中未发现已知陷阱，装备栏将为空！");
+        } else {
+             println!("📋 自动分析策略，生成装备列表: {:?}", derived_loadout);
+        }
+        self.active_loadout = derived_loadout;
+
+        // 3. 进入游戏逻辑
         if let Ok(mut human) = self.driver.lock() {
             println!("👆 点击游戏入口...");
             human.move_to_humanly(1700, 950, 0.5);
@@ -795,7 +812,6 @@ pub fn select_loadout(&self, tower_names: &[&str]) {
 
         println!("⏳ 等待战斗开始...");
         loop {
-            // 初始阶段：不需要 TAB，用旧正则
             if let Some(status) = self.recognize_wave_status(self.config.hud_check_rect, false) {
                 if status.current_wave > 0 {
                     println!("🎮 战斗开始! 初始波次: {}", status.current_wave);
@@ -806,12 +822,12 @@ pub fn select_loadout(&self, tower_names: &[&str]) {
             thread::sleep(Duration::from_millis(1000));
         }
 
-        self.execute_prep_logic(loadout);
+        // 4. 执行赛前准备 (无参调用)
+        self.execute_prep_logic();
         self.setup_view();
 
         println!("🤖 自动化监控中...");
         loop {
-            // 战斗阶段：需要 TAB，用新正则
             if let Some(status) = self.recognize_wave_status(self.config.hud_wave_loop_rect, true) {
                 if self.validate_wave_transition(status.current_wave) {
                     let current_wave = status.current_wave;
