@@ -895,7 +895,7 @@ impl TowerDefenseApp {
                 }
 
                 // 2. 检查退出条件
-                if no_wave_count >= 2 {
+                if no_wave_count >= 3 {
                     println!("🏁 连续 2 次未检测到波次，判定为游戏结束。");
                     println!("🔄 退出当前循环，返回主程序...");
                     break; // 跳出 loop，函数结束，控制权交还给 main 的 loop

@@ -1,6 +1,6 @@
 // src/main.rs
 use clap::Parser;
-use nzm_cmd::daily_routine::DailyRoutineApp; // 引入日活模块
+use nzm_cmd::daily_routine::DailyRoutineApp;
 use nzm_cmd::hardware::{create_driver, DriverType, InputDriver};
 use nzm_cmd::human::HumanDriver;
 use nzm_cmd::nav::{NavEngine, NavResult};
@@ -78,7 +78,8 @@ fn main() {
             "input" => run_input_test(human_driver),
             "screen" => run_screen_test(),
             "ocr" => run_ocr_test(engine),
-            "scroll" => run_scroll_test(human_driver), // ✨ 新增这一行
+            "scroll" => run_scroll_test(human_driver),
+            "combo" => run_combo_test(human_driver), // ✨ 新增这一行
             _ => println!("❌ 未知测试模式"),
         }
         return;
@@ -93,12 +94,9 @@ fn main() {
         let nav_result = engine.navigate(&args.target);
 
         match nav_result {
-            // ✨ 核心修改：接收 handler 参数
             NavResult::Handover(scene_id, handler_opt) => {
                 println!("⚔️ [主控] 导航成功: [{}]", scene_id);
 
-                // 如果 TOML 里没配置 handler，默认 fallback 到 "td" (塔防)
-                // 这样兼容旧的配置文件
                 let handler_key = handler_opt.as_deref().unwrap_or("td");
 
                 match handler_key {
@@ -109,7 +107,6 @@ fn main() {
                         app.run();
                     }
                     "td" | _ => {
-                        // 默认处理逻辑 (塔防)
                         println!("🏰 [路由] 启动塔防模块 (Handler: {})...", handler_key);
                         let mut td_app =
                             TowerDefenseApp::new(Arc::clone(&human_driver), Arc::clone(&engine));
@@ -131,7 +128,6 @@ fn main() {
                 println!("❌ [主控] 导航失败，执行重置操作 (ESC)...");
 
                 if let Ok(mut human) = human_driver.lock() {
-                    // 使用 unicode 转义避免字符字面量错误
                     human.key_hold('\u{1B}', 100);
 
                     if let Ok(mut dev) = human.device.lock() {
@@ -155,7 +151,6 @@ fn main() {
     }
 }
 
-// ... (测试函数 run_input_test, run_screen_test, run_ocr_test 保持不变) ...
 fn run_input_test(driver: Arc<Mutex<HumanDriver>>) {
     println!("Testing Mouse & Keyboard...");
     if let Ok(mut d) = driver.lock() {
@@ -222,21 +217,133 @@ fn run_ocr_test(engine: Arc<NavEngine>) {
     }
 }
 
-
 fn run_scroll_test(driver: Arc<Mutex<HumanDriver>>) {
     println!("Testing Mouse Scroll...");
     if let Ok(mut d) = driver.lock() {
         println!("-> 向下滚动 5 格 (Scroll Down)");
-        // 负数通常是向下滚动
-        // 每次 -120 是一格 (标准 Windows 定义)，或者根据驱动实现可能是 -1
-        // 这里尝试传 -1 (因为 HardwareDriver 内部实现了累积，而 SoftwareDriver 调用 Enigo)
-        // 建议先试小数值，比如 -5 代表滚动5次
-        d.mouse_scroll(-5); 
-        
+        d.mouse_scroll(-5);
+
         thread::sleep(Duration::from_secs(2));
 
         println!("-> 向上滚动 5 格 (Scroll Up)");
         d.mouse_scroll(5);
     }
     println!("Done.");
+}
+
+// ✨ 新增 Combo 测试函数
+fn run_combo_test(driver: Arc<Mutex<HumanDriver>>) {
+    println!("Testing Combo Sequence (Loop)... Press Ctrl+C to stop.");
+    // 默认间隔 50ms
+    let delay = Duration::from_millis(40);
+
+    // HID 键码: b=0x05, 4=0x21, 5=0x22
+    let key_b = 0x05;
+    let key_4 = 0x20;
+    let key_5 = 0x21;
+
+    loop {
+        // 锁定 HumanDriver 以获取访问权限
+        if let Ok(mut human) = driver.lock() {
+            // 1. 鼠标左键两下
+            // (click_humanly 内部会有几十毫秒的 hold time)
+            human.click_humanly(true, false, 50);
+            thread::sleep(delay);
+            human.click_humanly(true, false, 0);
+            thread::sleep(delay);
+
+            // 2. 按 b, 按 5
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_down(key_b, 0);
+            }
+            thread::sleep(delay);
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_down(key_5, 0);
+            }
+            thread::sleep(delay);
+
+            // 3. 松 b, 松 5
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_up(); // 释放 (通常是释放所有或最后一个)
+            }
+            thread::sleep(delay);
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_up(); // 再次释放以防万一
+            }
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            // 4. 鼠标左键两下
+            human.click_humanly(true, false, 0);
+            thread::sleep(delay);
+            human.click_humanly(true, false, 0);
+            thread::sleep(delay);
+
+            // 5. 按 b, 按 4
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_down(key_b, 0);
+            }
+            thread::sleep(delay);
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_down(key_4, 0);
+            }
+            thread::sleep(delay);
+
+            // 6. 松 b, 松 4
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_up();
+            }
+            thread::sleep(delay);
+            if let Ok(mut dev) = human.device.lock() {
+                dev.key_up();
+            }
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+            thread::sleep(delay);
+        }
+        // 循环继续
+    }
 }
