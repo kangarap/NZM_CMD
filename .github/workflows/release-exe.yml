@@ -1,0 +1,97 @@
+name: Build and Release EXE
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate release tag
+        id: meta
+        shell: pwsh
+        run: |
+          $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+          $tag = "v$timestamp-r$env:GITHUB_RUN_NUMBER"
+          $zipName = "nzm_cmd-$tag-windows-x64.zip"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "zip_name=$zipName" >> $env:GITHUB_OUTPUT
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Prepare release bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not (Test-Path "target/release/nzm_cmd.exe")) {
+            throw "Build output not found: target/release/nzm_cmd.exe"
+          }
+
+          $bundleDir = "release_bundle"
+          if (Test-Path $bundleDir) {
+            Remove-Item -Recurse -Force $bundleDir
+          }
+          New-Item -ItemType Directory -Path $bundleDir | Out-Null
+
+          Copy-Item "target/release/nzm_cmd.exe" "$bundleDir/nzm_cmd.exe"
+
+          $requiredFiles = @("ui_map.toml", "traps_config.json")
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path $file)) {
+              throw "Required file not found: $file"
+            }
+            Copy-Item $file "$bundleDir/$file"
+          }
+
+          $mapFiles = Get-ChildItem -Path "." -File -Filter "*地图.json"
+          $strategyFiles = Get-ChildItem -Path "." -File -Filter "*策略.json"
+
+          if ($mapFiles.Count -eq 0) {
+            throw "No map files found matching: *地图.json"
+          }
+          if ($strategyFiles.Count -eq 0) {
+            throw "No strategy files found matching: *策略.json"
+          }
+
+          foreach ($f in $mapFiles) {
+            Copy-Item $f.FullName "$bundleDir/$($f.Name)"
+          }
+          foreach ($f in $strategyFiles) {
+            Copy-Item $f.FullName "$bundleDir/$($f.Name)"
+          }
+
+          $zipName = "${{ steps.meta.outputs.zip_name }}"
+          if (Test-Path $zipName) {
+            Remove-Item -Force $zipName
+          }
+          Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipName
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nzm_cmd-windows-bundle
+          path: ${{ steps.meta.outputs.zip_name }}
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: ${{ steps.meta.outputs.zip_name }}
+          generate_release_notes: true
